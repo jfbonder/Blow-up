@@ -95,3 +95,29 @@ def test_spurious_steady_state():
     h = 1 / N
     assert 0.95 * (2 / h) ** 2 < W[-1] < (2 / h) ** 2  # w_N ≈ (2/(λh))^{1/(p-q)}
     assert np.linalg.eigvals(P.jac_dense(W)).real.max() < 0  # atractiva
+
+
+def test_square_fd_structure_and_propagation():
+    from blowup.parabolic import solve_to_blowup, square_fd
+
+    S = square_fd(8, 1.8)
+    A = S.stiffness.toarray()
+    np.testing.assert_allclose(A, A.T)
+    np.testing.assert_allclose(A.sum(axis=1), 0, atol=1e-12)
+    off = A - np.diag(np.diag(A))
+    assert off.max() <= 0
+    assert abs(S.mass.sum() - 1) < 1e-12 and abs(S.bmass.sum() - 4) < 1e-12
+    # Consistencia: u=(x^2+y^2)/2 tiene Δu=2 y derivada normal 1 en x=1.
+    X, Y = S.coords.T
+    lin = -(S.stiffness @ (0.5 * (X**2 + Y**2))) / S.mass
+    k = np.flatnonzero((np.isclose(X, 1)) & np.isclose(Y, 0.5))[0]
+    assert abs(lin[k] - (2 - 2 * 8 * 1.0)) < 1e-9
+    # Teorema 1.5 con p=1.8 (K=1): explotan la esquina y sus dos vecinos.
+    sol = solve_to_blowup(S, 1 + 0.5 * (X**2 + Y**2), lambda m: m ** 0.8, u_stop=1e100,
+                          method="BDF", rtol=1e-9, atol=1e-12)
+    R = sol.remaining
+    j = int(np.searchsorted(-R, -R[-1] * 1e10))
+    grow = sol.U[-1] - sol.U[j] > 1e-6 * (1 + np.abs(sol.U[-1]))
+    corner = np.isclose(X, 1) & np.isclose(Y, 1)
+    assert grow.sum() == 3 and grow[corner].all()
+    assert np.array_equal(grow, S.graph_distance(corner) <= 1)

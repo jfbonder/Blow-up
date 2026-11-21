@@ -330,3 +330,40 @@ es una errata.
   0.0217, 0.0209 y 0.0206 para $N=10,\dots,160$).
 - **$p=4>2q-1$:** las soluciones son globales y convergen a una
   estacionaria acotada que no depende de $h$ ($u_N\to2.536$).
+
+### Varias dimensiones (Acosta–Fernández Bonder–Groisman–Rossi)
+
+El paper es teórico, así que estos son experimentos ilustrativos. Problema:
+$u_t=\Delta u$ en $(0,1)^2$, $\partial u/\partial\eta=u^p$, con
+diferencias finitas (el Ejemplo 3 del paper) escritas como
+$MU'=-AU+BU^p$ (`blowup.parabolic.square_fd`, `LumpedSystem`). Dato:
+$u_0=1+\tfrac12(x^2+y^2)$, con máximo en la esquina $(1,1)$.
+
+| Script | Qué hace | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.several_dims [--only propagation\|rate\|times]` | Propagación (Teorema 1.5), tasa (Teorema 1.4) y $T_h\to T$ (Teorema 1.3) | ~3 min |
+
+**Propagación** (Teorema 1.5). $F$ es el conjunto de nodos con
+$(T_h-t)^{1/(p-1)}u_k\to l_k=(m_k/((p-1)b_k))^{1/(p-1)}$; en todos los
+casos resulta ser la esquina $(1,1)$. Explotan exactamente los nodos a
+distancia $\le K$ de $F$ en el grafo de $A$, con $K=[1/(p-1)]$:
+
+| $p$ | $K$ | nodos que explotan ($N=10,20,40$) |
+|---|---|---|
+| 3 | 0 | 1 |
+| 2 | 1 | 3 |
+| 1.8 | 1 | 3 |
+| 1.5 | 2 | 6 |
+| 1.4 | 2 | 6 |
+
+**Tasa** (Teorema 1.4, $p=2$). Cerca de $T_h$ la pendiente de
+$\log\|U\|_\infty$ contra $\log(T_h-t)$ es exactamente $-1/(p-1)=-1$, la
+tasa numérica. La tasa continua es $-1/(2(p-1))=-1/2$. Si se grafica la
+pendiente contra $(T_h-t)/h^2$, las curvas de todos los $N$ coinciden: el
+cambio de tasa ocurre en $T_h-t\approx h^2$. Antes, cuanto más fina es la
+malla, más se acerca la pendiente a $-1/2$ (llega a $-0.54$ con $N=80$).
+
+**Tiempos de explosión** (Teorema 1.3, $p=2$). $T_h$ vale 0.02794,
+0.02399, 0.02282, 0.02249 y 0.02241 para $N=10,\dots,160$. El orden
+observado tiende a 2 (1.75, 1.86, 1.91), y por extrapolación de Richardson
+$T\approx0.02238$.

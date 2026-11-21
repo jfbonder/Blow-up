@@ -389,8 +389,14 @@ def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u
 
     stop.terminal = True
     y0 = np.append(np.asarray(u0, float), 0.0)
+    kw = {}
+    if method in ("BDF", "Radau") and hasattr(problem, "jac"):
+        # Jacobiano aproximado g J (se omite la derivada de g), ralo.
+        zero = sparse.csr_matrix((1, 1))
+        kw["jac"] = lambda s, y: sparse.block_diag([g_of(y[:-1]) * problem.jac(0.0, y[:-1]), zero],
+                                                    format="csc")
     sol = solve_ivp(F, (0.0, s_max), y0, method=method, rtol=rtol, atol=atol, events=stop,
-                    dense_output=True)
+                    dense_output=True, **kw)
     if sol.status != 1:
         raise RuntimeError(f"no se alcanzó u_stop={u_stop:g}: {sol.message}")
     s_end = float(sol.t[-1])
@@ -414,3 +420,96 @@ def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u
     rem_direct = T - t
     remaining = np.where(rem_direct > 1e-6 * T, rem_direct, rem_int)
     return BlowupSolution(s, t, U, remaining, T)
+
+
+# ---------------------------------------------------------------------------
+# Sistemas generales M U' = -A U + B U^p (varias dimensiones)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LumpedSystem:
+    r"""Sistema :math:`MU' = -AU + B\,U^p` de Acosta–Fernández Bonder–Groisman–Rossi
+    (*several space dimensions*): :math:`M`, :math:`B` diagonales (masa y masa
+    de borde concentradas), :math:`A` simétrica con :math:`a_{ij}\le0` fuera de
+    la diagonal y sumas por filas nulas.
+
+    ``coords`` (opcional) guarda las coordenadas de los nodos para graficar.
+    """
+
+    mass: np.ndarray
+    stiffness: sparse.csr_matrix
+    bmass: np.ndarray
+    p: float
+    coords: np.ndarray | None = None
+
+    def __post_init__(self):
+        self._Minv = 1.0 / self.mass
+        self._MinvA = (sparse.diags(self._Minv) @ self.stiffness).tocsr()
+        self._ratio = self.bmass * self._Minv
+
+    def rhs(self, t: float, u: np.ndarray) -> np.ndarray:
+        return -(self._MinvA @ u) + self._ratio * np.abs(u) ** self.p
+
+    def jac(self, t: float, u: np.ndarray):
+        d = self._ratio * self.p * np.abs(u) ** (self.p - 1)
+        return (-self._MinvA + sparse.diags(d)).tocsr()
+
+    def jac_dense(self, u: np.ndarray) -> np.ndarray:
+        return self.jac(0.0, u).toarray()
+
+    solve = HeatFlux1D.solve
+
+    def graph_distance(self, sources: np.ndarray) -> np.ndarray:
+        """Distancia en el grafo de :math:`A` (Definición 1.1) al conjunto ``sources``."""
+        from scipy.sparse.csgraph import shortest_path
+
+        G = (self.stiffness != 0).astype(float)
+        G.setdiag(0)
+        G.eliminate_zeros()
+        D = shortest_path(G, unweighted=True, indices=np.flatnonzero(sources))
+        return D.min(axis=0)
+
+    def limit_profile(self) -> np.ndarray:
+        r""":math:`l_k=(m_k/((p-1)b_k))^{1/(p-1)}`: límite de
+        :math:`(T_h-t)^{1/(p-1)}u_k` para los nodos de :math:`F` (Lemas 6.1–6.3)."""
+        with np.errstate(divide="ignore"):
+            return (self.mass / ((self.p - 1) * self.bmass)) ** (1 / (self.p - 1))
+
+
+def square_fd(n: int, p: float) -> LumpedSystem:
+    r"""Diferencias finitas en :math:`(0,1)^2` con :math:`\partial u/\partial\eta=u^p`
+    (Ejemplo 3 del paper), escritas en la forma :math:`MU'=-AU+BU^p`.
+
+    Malla :math:`x_i=ih`, :math:`h=1/n`, :math:`(n+1)^2` nodos; nodos
+    fantasma para la condición de Neumann no lineal.  Multiplicando la
+    ecuación del nodo por su "masa" (:math:`h^2`, :math:`h^2/2` en lados,
+    :math:`h^2/4` en esquinas) queda :math:`A` simétrica (laplaciano de 5
+    puntos con pesos :math:`1/2` a lo largo del borde) y :math:`b_k=h` en
+    todos los nodos de borde.
+    """
+    h = 1.0 / n
+    idx = np.arange((n + 1) ** 2).reshape(n + 1, n + 1)  # idx[i, j] ↔ (x_i, y_j)
+    on_x = np.zeros((n + 1, n + 1), bool)
+    on_x[[0, -1], :] = True
+    on_y = np.zeros((n + 1, n + 1), bool)
+    on_y[:, [0, -1]] = True
+    w = np.where(on_x, 0.5, 1.0) * np.where(on_y, 0.5, 1.0)  # masa / h^2
+    rows, cols, vals = [], [], []
+    for di, dj in [(1, 0), (0, 1)]:
+        a = idx[: n + 1 - di, : n + 1 - dj]
+        b = idx[di:, dj:]
+        # Arista entre a y b: peso 1/2 si la arista está sobre el borde.
+        if di:
+            along = on_y[: n + 1 - di, :]
+        else:
+            along = on_x[:, : n + 1 - dj]
+        c = np.where(along, 0.5, 1.0).ravel()
+        rows += [a.ravel(), b.ravel()]
+        cols += [b.ravel(), a.ravel()]
+        vals += [-c, -c]
+    rows, cols, vals = map(np.concatenate, (rows, cols, vals))
+    A = sparse.coo_matrix((vals, (rows, cols)), shape=(idx.size, idx.size)).tocsr()
+    A = A - sparse.diags(np.asarray(A.sum(axis=1)).ravel())
+    bmass = np.where(on_x | on_y, h, 0.0).ravel()
+    X, Y = np.meshgrid(np.linspace(0, 1, n + 1), np.linspace(0, 1, n + 1), indexing="ij")
+    return LumpedSystem(w.ravel() * h * h, A.tocsr(), bmass, p, np.column_stack([X.ravel(), Y.ravel()]))
