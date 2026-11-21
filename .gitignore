@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .venv/
+report/*.aux
+report/*.log
+report/*.fls
+report/*.fdb_latexmk
+report/*.out
+report/*.toc

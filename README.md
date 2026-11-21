@@ -10,6 +10,10 @@ Los códigos originales estaban escritos en MATLAB y se perdieron. El objetivo
 es reconstruirlos a partir de los artículos y, en los trabajos puramente
 teóricos, agregar experimentos que ilustren los resultados.
 
+## Informe
+
+El informe [`report/informe.pdf`](report/informe.pdf) reúne los resultados agrupados por tema, con las figuras y tablas, las discrepancias con los artículos y las instrucciones de reproducción. La fuente es `report/informe.tex`; se compila con `cd report && latexmk -pdf informe.tex`.
+
 ## Artículos
 
 Los PDFs (versiones de autor) están en [`papers/`](papers/). Para cada uno hay
