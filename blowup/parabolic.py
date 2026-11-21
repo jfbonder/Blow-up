@@ -97,6 +97,10 @@ class HeatFlux1D:
     def jac_dense(self, u: np.ndarray) -> np.ndarray:
         return self.jac(0.0, u).toarray()
 
+    def linear_operator(self):
+        """Parte lineal :math:`L=-M^{-1}A` (para métodos IMEX)."""
+        return -self._MinvA
+
     def nodal(self, f: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
         """Interpolante nodal de ``f``."""
         return np.asarray(f(self.x), dtype=float)
@@ -154,6 +158,10 @@ class ReactionDirichlet1D:
 
     def jac(self, t: float, u: np.ndarray):
         return (self._lap + sparse.diags(self.df(u))).tocsr()
+
+    def linear_operator(self):
+        """Laplaciano discreto Dirichlet (para métodos IMEX)."""
+        return self._lap
 
     def jac_dense(self, u: np.ndarray) -> np.ndarray:
         return self.jac(0.0, u).toarray()
@@ -356,7 +364,8 @@ class BlowupSolution:
 
 def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float] | None, u_stop: float = 1e100,
                     n_out: int = 4000, s_max: float = 1e6, rtol: float = 1e-10, atol: float = 1e-12,
-                    method: str = "LSODA") -> BlowupSolution:
+                    method: str = "LSODA", psi: Callable[[np.ndarray], float] | None = None
+                    ) -> BlowupSolution:
     r"""Integra :math:`U'=\Phi(U)` hasta que :math:`\max U\ge` ``u_stop``.
 
     Usa el reescalamiento del tiempo
@@ -379,6 +388,8 @@ def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float] | 
 
     def g_of(U):
         m = float(np.max(U))
+        if psi is not None:  # regla general psi(U) (ver blowup.adaptive)
+            return 1.0 / max(1.0, psi(U))
         if growth is None:
             return 1.0 / max(1.0, float(np.max(np.abs(problem.rhs(0.0, U)))) / m)
         return 1.0 / max(1.0, growth(m))
@@ -460,6 +471,10 @@ class LumpedSystem:
 
     def jac_dense(self, u: np.ndarray) -> np.ndarray:
         return self.jac(0.0, u).toarray()
+
+    def linear_operator(self):
+        """Parte lineal :math:`L=-M^{-1}A` (para métodos IMEX)."""
+        return -self._MinvA
 
     solve = HeatFlux1D.solve
 

@@ -68,7 +68,9 @@ Módulos del paquete:
 - `blowup/spde.py` ✅: diferencias finitas en espacio con ruido blanco
   espacio-temporal, Euler explícito con paso adaptativo, trayectorias
   registradas y Monte Carlo vectorizado de tiempos de explosión.
-- `blowup/parabolic.py` (en construcción): semidiscretización P1 + *mass
+- `blowup/adaptive.py` ✅: paquete de paso adaptativo para blow-up (ver
+  abajo).
+- `blowup/parabolic.py` ✅: semidiscretización P1 + *mass
   lumping* de $u_t=u_{xx}+r(u)$ con $u_x(0)=0$ y $u_x(1)=F(u(1))$, con
   jacobiano exacto para integradores implícitos. Incluye clasificación
   decaimiento/explosión, bisección para umbrales (variedad estable) y
@@ -409,3 +411,45 @@ $p_{21}<p_{11}-1=2$. Pasa lo mismo para $N=10,20,40,80$:
 
 En el caso no simultáneo,
 $\|U\|_\infty\sim(T_h-t)^{-1/(p_{11}-1)}$ y $V$ converge a un valor finito.
+
+## Paquete de paso adaptativo (`blowup.adaptive`)
+
+Implementa la regla de paso de los artículos,
+$\tau_n=\tau/\max(1,\psi(U_n))$, para cualquier sistema $U'=F(U)$. El
+tiempo de explosión numérico es $T_\tau=\sum_n\tau_n$.
+
+| Regla $\psi$ | Paso resultante | Artículo |
+|---|---|---|
+| `psi_power(p)` | $\tau\min(1,\|U_n\|_\infty^{1-p})$ | Acosta–Durán–Rossi; reglas para $u^p$ |
+| `psi_growth(f)` | $\tau\,m/f(m)$, con $m=\|U_n\|_\infty$ | general para $u'=f(u)$ |
+| `psi_drift(b)` | $h/b(X_k)$ | Dávila et al. (SDEs) |
+| `psi_l1(w)` | $\tau/\|u\|_{L^1}$ | Fernández Bonder–Groisman (SPDE) |
+| `psi_rhs(problem)` | $\tau\|U\|/\|U'\|$ | genérica, no requiere conocer $f$ |
+
+**Dos variantes:**
+
+- **Totalmente discreta:**
+  `integrate(problem, u0, tau, psi, method=...)`, con tres métodos:
+  - `"explicit"`: Euler explícito; con difusión hay que acotar el paso,
+    `tau_max` $\le h^2/2$.
+  - `"imex"`: la parte lineal implícita y la no lineal explícita,
+    $(I-\tau_nL)U_{n+1}=U_n+\tau_nN(U_n)$.
+  - `"implicit"`: Euler implícito, resuelto con Newton.
+
+  Con `psi=None` usa paso fijo, para comparar. Devuelve también
+  $T_\tau-t_n$ calculado sin cancelación.
+- **Continua:** `rescaled(problem, u0, psi)` integra
+  $dt/ds=1/\max(1,\psi(U))$ con un integrador de alto orden.
+
+Validación (`python -m experiments.adaptive.discrete`, ~5 min):
+
+- **$u'=u^2$, $u(0)=1$:**
+  - Con Euler explícito $T_\tau=1+\tau$ exactamente; el implícito también
+    converge con orden 1.
+  - Con paso fijo la solución discreta crece doblemente exponencial en
+    $n$. Llega a $10^{150}$ en $t=1.6$, cuando el verdadero tiempo de
+    explosión es $T=1$.
+- **$u_x(1)=u^2$, $N=20$:** $T_\tau\to T_h$ con orden 1 (órdenes
+  observados: explícito 1.00, IMEX 0.84 en preasintótico, implícito 1.06).
+  El esquema discreto reproduce la tasa $u_N\sim(T_\tau-t_n)^{-1}$ (la
+  pendiente medida es $-1.0000$) y la explosión de exactamente dos nodos.
