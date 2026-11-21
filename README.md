@@ -46,26 +46,64 @@ lineal en el borde.
 ```
 papers/            artículos originales (PDF / PS)
 papers/notes/      notas de implementación de cada artículo
-blowup/            paquete Python con los esquemas numéricos   (en construcción)
-experiments/       un script por figura / tabla / experimento   (en construcción)
+blowup/            paquete Python con los esquemas numéricos
+experiments/       un script por figura / tabla / experimento
+figures/           figuras generadas por los scripts
+tests/             tests (pytest)
 ```
 
-Estructura prevista del paquete:
+Módulos del paquete:
 
-- `blowup/parabolic.py`: semidiscretizaciones (P1 + *mass lumping*), pasos
-  temporales adaptativos, detección de blow-up y estimación de $T_h$.
-- `blowup/sode.py`: Euler–Maruyama con paso adaptativo $\tau_k = h/b(X_k)$ y
-  tiempos de explosión numéricos.
-- `blowup/spde.py`: diferencias finitas en espacio con ruido blanco
-  espacio-temporal y paso adaptativo.
+- `blowup/sode.py` ✅: Euler–Maruyama con paso adaptativo $\tau_k = h/b(X_k)$,
+  trayectorias individuales y Monte Carlo vectorizado de $R_h^M$.
+- `blowup/spde.py` (pendiente): diferencias finitas en espacio con ruido
+  blanco espacio-temporal y paso adaptativo.
+- `blowup/parabolic.py` (pendiente): semidiscretizaciones (P1 + *mass
+  lumping*), pasos temporales adaptativos, detección de blow-up y
+  estimación de $T_h$.
 
 ## Instalación y uso
 
-Requiere Python ≥ 3.10.
+Requiere Python ≥ 3.10. Todos los comandos se corren desde la raíz del repo.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Las instrucciones para correr cada experimento se irán agregando a medida que
-se implementen.
+```bash
+python -m pytest
+```
+
+### SDEs con explosión (Dávila et al.)
+
+$b(\xi)=|\xi|^{1.1}+0.1$, $\sigma=\sqrt b$, $z=10$. Cada script acepta
+`--seed N`. Las figuras se guardan en `figures/sode/`.
+
+| Script | Figura del paper | Parámetros | Tiempo |
+|---|---|---|---|
+| `python -m experiments.sode.fig1_paths` | Fig. 1 (y ampliaciones 1.1, 1.2) | $h=0.25$\*, $M=10^5$, 3 trayectorias | ~2 s |
+| `python -m experiments.sode.fig2_ratio` | Fig. 2: $X_k/(hk)\to1$ | las mismas trayectorias de la Fig. 1 | ~2 s |
+| `python -m experiments.sode.fig3_kde` | Fig. 3: densidad de $R_h^M$ | $h=1,\,0.5,\,0.1$, $M=10^4$\*, 1000 trayectorias | ~10 s |
+
+\* Valores elegidos por nosotros porque el paper no los especifica:
+
+- **$h=0.25$ en las Figs. 1 y 2.** Con ese valor cada trayectoria da
+  $\approx M/h = 4\times10^5$ pasos, que es el rango del eje $k$ de la
+  Fig. 2 original.
+- **$M=10^4$ en la Fig. 3.** Con $M=10^4$ la densidad queda centrada en
+  $\approx4.0$ con soporte $\approx[3.4,\,4.9]$, como en la figura original.
+  Con $M=10^5$ quedaría centrada en $\approx4.8$. Se puede cambiar con `--M`.
+- **$h=0.1$ y no $0.01$ en la Fig. 3.** La leyenda original dice $0.01$,
+  pero el texto y $\tau_1\simeq0.008$ corresponden a $h=0.1$.
+
+Resultado de referencia de la Fig. 3 (semilla por defecto):
+
+| $h$ | media $R_h^M$ | desvío |
+|---|---|---|
+| 1 | 4.032 | 0.248 |
+| 0.5 | 4.020 | 0.237 |
+| 0.1 | 4.006 | 0.249 |
+
+Para estos $M$, $R_h^M$ todavía está lejos del tiempo de explosión $T$: la
+cola determinista $\int_M^\infty ds/b \approx 10\,M^{-0.1}$ vale $\approx4$
+para $M=10^4$. La convergencia en $M$ es muy lenta porque $b\sim s^{1.1}$.
