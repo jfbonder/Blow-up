@@ -45,3 +45,19 @@ def test_unstable_eigenvalue_converges():
     mu = np.linalg.eigvals(P.jac_dense(np.ones(101))).real
     assert (mu > 0).sum() == 1
     assert abs(mu.max() - unstable_eigenvalue_continuous(2.0)) < 1e-3
+
+
+def test_dirichlet_steady_state_and_threshold():
+    from blowup.parabolic import ReactionDirichlet1D, power_steady_max, power_steady_profile
+
+    p = 2.0
+    assert abs(power_steady_max(p) - 11.79669) < 1e-4
+    P = ReactionDirichlet1D(50, lambda u: np.abs(u) ** p, lambda u: p * np.abs(u) ** (p - 1) * np.sign(u))
+    V = P.steady_state(power_steady_profile(p, P.xi))
+    np.testing.assert_allclose(P.rhs(0, V), 0, atol=1e-8)
+    assert abs(V.max() - power_steady_max(p)) < 5e-3
+    mu = np.linalg.eigvalsh(P.jac_dense(V))
+    assert (mu > 0).sum() == 1  # variedad estable de codimensión uno
+    u0 = np.sin(np.pi * P.xi)
+    lam = critical_lambda(P, u0, 10.0, 13.0, tol=1e-6, equilibrium=V)
+    assert abs(lam - 11.51048) < 1e-4

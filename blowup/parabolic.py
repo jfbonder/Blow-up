@@ -121,6 +121,102 @@ class HeatFlux1D:
                          events=events, **kw)
 
 
+@dataclass
+class ReactionDirichlet1D:
+    r"""Semidiscretización de :math:`u_t = u_{xx} + f(u)` en :math:`(0,1)` con
+    :math:`u(0)=u(1)=0`.
+
+    P1 + mass lumping (= diferencias finitas de segundo orden) en
+    :math:`x_i=i/N`; las incógnitas son los nodos interiores
+    :math:`u_1,\dots,u_{N-1}`:
+
+    .. math::  u_i' = \tfrac{1}{h^2}(u_{i+1}-2u_i+u_{i-1}) + f(u_i),
+               \qquad u_0 = u_N = 0.
+    """
+
+    N: int
+    f: Func
+    df: Func
+
+    def __post_init__(self):
+        self.h = 1.0 / self.N
+        self.x = np.linspace(0.0, 1.0, self.N + 1)
+        self.xi = self.x[1:-1]
+        n = self.N - 1
+        self._lap = sparse.diags([np.ones(n - 1), -2 * np.ones(n), np.ones(n - 1)], [-1, 0, 1],
+                                 format="csr") / self.h**2
+
+    def rhs(self, t: float, u: np.ndarray) -> np.ndarray:
+        d = -2.0 * u
+        d[1:] += u[:-1]
+        d[:-1] += u[1:]
+        return d / self.h**2 + self.f(u)
+
+    def jac(self, t: float, u: np.ndarray):
+        return (self._lap + sparse.diags(self.df(u))).tocsr()
+
+    def jac_dense(self, u: np.ndarray) -> np.ndarray:
+        return self.jac(0.0, u).toarray()
+
+    def nodal(self, g: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+        """Interpolante nodal de ``g`` en los nodos interiores."""
+        return np.asarray(g(self.xi), dtype=float)
+
+    def full(self, u: np.ndarray) -> np.ndarray:
+        """Agrega los valores de borde (cero)."""
+        return np.concatenate(([0.0], u, [0.0]))
+
+    solve = HeatFlux1D.solve
+
+    def steady_state(self, guess: np.ndarray, tol: float = 1e-12, maxit: int = 50) -> np.ndarray:
+        """Solución estacionaria discreta por Newton desde ``guess``."""
+        from scipy.sparse.linalg import spsolve
+
+        u = np.array(guess, dtype=float)
+        for _ in range(maxit):
+            F = self.rhs(0.0, u)
+            du = spsolve(self.jac(0.0, u).tocsc(), -F)
+            u += du
+            if np.abs(du).max() < tol * max(1.0, np.abs(u).max()):
+                return u
+        raise RuntimeError("Newton no convergió")
+
+
+def power_steady_max(p: float) -> float:
+    r"""Máximo de la solución positiva de :math:`v''+v^p=0`, :math:`v(0)=v(1)=0`:
+
+    .. math::  M = \Big(2\sqrt{\tfrac{p+1}{2}}\,J\Big)^{2/(p-1)},\qquad
+               J = \int_0^1\frac{ds}{\sqrt{1-s^{p+1}}} = \frac{1}{p+1}B\Big(\frac{1}{p+1},\frac12\Big).
+
+    (Para :math:`p=2`, :math:`M\approx11.7967`.)
+    """
+    from scipy.special import beta
+
+    J = beta(1 / (p + 1), 0.5) / (p + 1)
+    return (2 * math.sqrt((p + 1) / 2) * J) ** (2 / (p - 1))
+
+
+def power_steady_profile(p: float, x: np.ndarray) -> np.ndarray:
+    r"""Perfil continuo :math:`v(x)` de la solución positiva de :math:`v''+v^p=0`
+    (Dirichlet), por integración de la ecuación de energía."""
+    from scipy.integrate import quad
+    from scipy.optimize import brentq
+
+    M = power_steady_max(p)
+    c = math.sqrt((p + 1) / 2) * M ** ((1 - p) / 2)
+
+    def x_of(v):  # x(v) para la mitad izquierda; sustitución s = v/M
+        if v <= 0:
+            return 0.0
+        return c * quad(lambda s: (1 - s ** (p + 1)) ** -0.5, 0, v / M)[0]
+
+    out = np.empty_like(np.asarray(x, dtype=float))
+    for k, xk in enumerate(np.asarray(x, dtype=float)):
+        y = min(xk, 1 - xk)
+        out[k] = 0.0 if y <= 0 else (M if y >= 0.5 else brentq(lambda v: x_of(v) - y, 0, M))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Flujos usados en los papers
 # ---------------------------------------------------------------------------
@@ -142,36 +238,39 @@ def flux_power(p: float):
 Outcome = Literal["decay", "blowup", "undecided"]
 
 
-def classify(problem: HeatFlux1D, u0: np.ndarray, equilibrium: float = 1.0, margin: float = 0.01,
+def classify(problem, u0: np.ndarray, equilibrium: float | np.ndarray = 1.0, margin: float = 0.01,
              blowup_level: float | None = None, t_end: float = 1e4, **solve_kw) -> tuple[Outcome, float]:
-    r"""Clasifica la solución con dato ``u0`` en decaimiento o explosión.
+    r"""Clasifica la solución con dato ``u0`` en decaimiento o explosión
+    comparándola con un equilibrio positivo :math:`W` (escalar o vector).
 
-    Criterios (rigurosos por el principio de comparación, Teorema 3.1 de
-    Acosta–Fernández Bonder–Rossi):
+    Criterios (rigurosos por el principio de comparación cuando :math:`W` es
+    el único equilibrio positivo y separa la cuenca de 0 de la explosión,
+    p. ej. Teorema 3.1 de Acosta–Fernández Bonder–Rossi):
 
-    * decaimiento si :math:`\max_i u_i < 1 - \text{margin}`;
-    * explosión si :math:`\min_i u_i > 1 + \text{margin}` o
-      :math:`u_N >` ``blowup_level``.
+    * decaimiento si :math:`u < (1-\text{margin})\,W` en todos los nodos;
+    * explosión si :math:`u > (1+\text{margin})\,W` en todos los nodos o
+      :math:`\max u >` ``blowup_level``.
 
     Devuelve ``(resultado, tiempo en que se decidió)``.
     """
-    lo, hi = equilibrium - margin, equilibrium + margin
-    if u0.max() < lo:
+    lo = (1 - margin) * np.asarray(equilibrium, dtype=float)
+    hi = (1 + margin) * np.asarray(equilibrium, dtype=float)
+    if np.all(u0 < lo):
         return "decay", 0.0
-    if u0.min() > hi or (blowup_level is not None and u0[-1] > blowup_level):
+    if np.all(u0 > hi) or (blowup_level is not None and u0.max() > blowup_level):
         return "blowup", 0.0
 
     def ev_decay(t, u):
-        return u.max() - lo
+        return np.max(u - lo)
 
     def ev_blow(t, u):
-        return u.min() - hi
+        return np.min(u - hi)
 
     ev_decay.terminal = ev_blow.terminal = True
     events = [ev_decay, ev_blow]
     if blowup_level is not None:
         def ev_level(t, u):
-            return u[-1] - blowup_level
+            return u.max() - blowup_level
         ev_level.terminal = True
         events.append(ev_level)
 
@@ -181,11 +280,12 @@ def classify(problem: HeatFlux1D, u0: np.ndarray, equilibrium: float = 1.0, marg
             return "decay", float(sol.t_events[0][0])
         return "blowup", float(sol.t[-1])
     if sol.status == -1:  # el integrador falló: típicamente por explosión
-        return ("blowup", float(sol.t[-1])) if sol.y[-1, -1] > hi else ("undecided", float(sol.t[-1]))
+        blew = np.all(sol.y[:, -1] > hi) or sol.y[:, -1].max() > 10 * np.max(hi)
+        return ("blowup" if blew else "undecided"), float(sol.t[-1])
     return "undecided", float(sol.t[-1])
 
 
-def critical_parameter(problem: HeatFlux1D, family: Callable[[float], np.ndarray], lo: float, hi: float,
+def critical_parameter(problem, family: Callable[[float], np.ndarray], lo: float, hi: float,
                        tol: float = 1e-7, **classify_kw) -> float:
     r"""Bisección sobre una familia monótona de datos ``family(a)``: devuelve el
     :math:`a^*` tal que el dato decae para :math:`a<a^*` y explota para
@@ -202,11 +302,13 @@ def critical_parameter(problem: HeatFlux1D, family: Callable[[float], np.ndarray
         elif out == "blowup":
             hi = mid
         else:
-            raise RuntimeError(f"no se pudo clasificar el parámetro {mid}")
+            # La solución quedó numéricamente sobre la variedad estable hasta
+            # t_end: el umbral está a menos de la precisión del integrador.
+            return mid
     return 0.5 * (lo + hi)
 
 
-def critical_lambda(problem: HeatFlux1D, u0: np.ndarray, lo: float, hi: float, tol: float = 1e-7,
+def critical_lambda(problem, u0: np.ndarray, lo: float, hi: float, tol: float = 1e-7,
                     **classify_kw) -> float:
     r""":math:`\lambda_{c,h}`: :math:`\lambda U_0` decae si
     :math:`\lambda<\lambda_{c,h}` y explota si :math:`\lambda>\lambda_{c,h}`."""

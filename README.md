@@ -211,3 +211,37 @@ con LSODA, jacobiano exacto y `rtol=1e-10`.
   $N=100$; el valor continuo es 1.43923 ($k^2$ con $k\tanh k=1$).
 - **Fig. 1:** la solución se aplana cerca de $u\equiv1$, queda ahí hasta
   $t\approx4.5$ y después despega, primero en $x=1$, como en el paper.
+
+### Umbral para $u_t=u_{xx}+u^p$ con Dirichlet (experimento adicional)
+
+Es el análogo del paper de la variedad estable:
+$u_t=u_{xx}+u^p$ en $(0,1)$, $u(0)=u(1)=0$, con dato $\lambda u_0$. Hay
+una única estacionaria positiva $v$ (para $p=2$, $\max v\approx11.797$), y
+$\lambda_c u_0$ está en su variedad estable, que tiene codimensión uno.
+
+| Script | Qué hace | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.dirichlet_threshold [--p 2]` | Tabla de $\lambda_{c,h}$ para $u_0=\sin\pi x$ y $u_0=\tfrac{27}{4}x(1-x)^2$; dinámica cerca del umbral; estacionaria y datos críticos | ~30 s |
+
+**Método.** La estacionaria discreta $V_h$ se calcula por Newton. Para
+$\lambda_{c,h}$ uso bisección: la solución decae si $U<0.99\,V_h$ y
+explota si $U>1.01\,V_h$, en todos los nodos; los dos criterios son
+rigurosos por comparación.
+
+Resultados para $p=2$:
+
+| $N$ | $\max V_h$ | $\mu_h$ | $\lambda_{c,h}$ ($\sin\pi x$) | $\lambda_{c,h}$ ($\tfrac{27}{4}x(1-x)^2$) |
+|---|---|---|---|---|
+| 10 | 11.7117 | 9.9029 | 11.410893 | 12.890662 |
+| 50 | 11.7933 | 9.9733 | 11.510482 | 13.007673 |
+| 100 | 11.7958 | 9.9755 | 11.513566 | 13.011310 |
+| 400 | 11.7966 | 9.9762 | 11.514530 | 13.012446 |
+| límite (Richardson) | 11.7967 | | 11.514594 | 13.012522 |
+
+- **Orden de convergencia:** $h^2$ (el orden observado es 2.000 para los dos
+  datos).
+- **Inestabilidad:** la linealización $\phi''+2V_h\phi$ tiene un único
+  autovalor positivo, $\mu\approx9.976$.
+- **Tiempo cerca de $v$:** con $\lambda=\lambda_{c,h}(1\pm10^{-k})$ la
+  solución pasa un tiempo $\approx k\ln10/\mu$ cerca de $v$ antes de decaer
+  a 0 o explotar. Cada factor 100 agrega ≈0.46 unidades de tiempo.
