@@ -59,9 +59,11 @@ Módulos del paquete:
 - `blowup/spde.py` ✅: diferencias finitas en espacio con ruido blanco
   espacio-temporal, Euler explícito con paso adaptativo, trayectorias
   registradas y Monte Carlo vectorizado de tiempos de explosión.
-- `blowup/parabolic.py` (pendiente): semidiscretizaciones (P1 + *mass
-  lumping*), pasos temporales adaptativos, detección de blow-up y
-  estimación de $T_h$.
+- `blowup/parabolic.py` (en construcción): semidiscretización P1 + *mass
+  lumping* de $u_t=u_{xx}+r(u)$ con $u_x(0)=0$ y $u_x(1)=F(u(1))$, con
+  jacobiano exacto para integradores implícitos. Incluye clasificación
+  decaimiento/explosión y bisección para umbrales (variedad estable). Falta
+  el paso temporal adaptativo para blow-up.
 
 ## Instalación y uso
 
@@ -171,3 +173,41 @@ explosión deja de ser un evento raro y la ley se aparta de la exponencial:
 la cola es más liviana y aparece un tiempo mínimo de tránsito. Es lo
 esperable si $T_\sigma/\mathbb E T_\sigma\to\mathrm{Exp}(1)$ cuando
 $\sigma\to0$.
+
+### Variedad estable (Acosta–Fernández Bonder–Rossi)
+
+Problema: $u_t=u_{xx}$ en $(0,1)$, $u_x(0)=0$, $u_x(1)=u^2-u$, con dato
+$\lambda u_0$, $u_0=\tfrac12\cos(2\pi x)+1$. Las figuras se guardan en
+`figures/parabolic/`.
+
+| Script | Qué reproduce | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.stable_manifold_table1` | Tabla 1: $\lambda_{c,h}$ para $N=10,\dots,400$, orden de convergencia y autovalor inestable | ~10 s |
+| `python -m experiments.parabolic.stable_manifold_fig1` | Fig. 1: solución con $N=100$, $\lambda=0.9771$ | ~5 s |
+| `python -m experiments.parabolic.stable_manifold_slice` | **Adicional:** corte de la variedad estable en el plano $a+b\cos(2\pi x)$ | ~2 min |
+
+**Método.** $\lambda_{c,h}$ se calcula por bisección hasta $10^{-9}$.
+Clasificación: la solución decae si $\max u<0.99$ y explota si
+$\min u>1.01$; los dos criterios son rigurosos por el Teorema 3.1. Integro
+con LSODA, jacobiano exacto y `rtol=1e-10`.
+
+| $N$ | $\lambda_{c,h}$ (Python) | Tabla 1 del paper |
+|---|---|---|
+| 10 | 0.976472 | 0.9755 |
+| 20 | 0.976894 | 0.9766 |
+| 50 | 0.977008 | 0.9770 |
+| 100 | 0.977024 | 0.9770 |
+| 200 | 0.977028 | — |
+| 400 | 0.977029 | — |
+
+- **$N=50$ y $N=100$ coinciden** con la tabla del paper. Para $N=10$ y
+  $N=20$ hay una diferencia de ~$10^{-3}$ que no logré explicar. Probé
+  tolerancias tipo `ode45` de MATLAB, bordes de primer orden, matriz de masa
+  consistente y otra discretización del dato, y ninguna la reproduce.
+- **Orden de convergencia $h^2$**, confirmado: el orden observado es 2.00.
+  El paper lo sugería sin probarlo. Por extrapolación de Richardson,
+  $\lambda_c\approx0.9770294$.
+- **Autovalor inestable** de la linealización en $(1,\dots,1)$: 1.43920 para
+  $N=100$; el valor continuo es 1.43923 ($k^2$ con $k\tanh k=1$).
+- **Fig. 1:** la solución se aplana cerca de $u\equiv1$, queda ahí hasta
+  $t\approx4.5$ y después despega, primero en $x=1$, como en el paper.
