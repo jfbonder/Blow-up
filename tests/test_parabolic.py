@@ -61,3 +61,22 @@ def test_dirichlet_steady_state_and_threshold():
     u0 = np.sin(np.pi * P.xi)
     lam = critical_lambda(P, u0, 10.0, 13.0, tol=1e-6, equilibrium=V)
     assert abs(lam - 11.51048) < 1e-4
+
+
+def test_solve_to_blowup_power_rate_and_nodes():
+    from blowup.parabolic import solve_to_blowup
+
+    p, N = 2.0, 10
+    P = HeatFlux1D(N, *flux_power(p))
+    sol = solve_to_blowup(P, np.ones(N + 1), lambda m: m ** (p - 1), u_stop=1e100)
+    R = sol.remaining
+    # u_N ~ C (T_h - t)^{-1}: pendiente -1 en log-log.
+    i0 = int(np.searchsorted(-R, -R[-1] * 1e30))
+    slope = np.polyfit(np.log(R[i0:]), np.log(sol.U[i0:, N]), 1)[0]
+    assert abs(slope + 1) < 1e-3
+    # Con u_x(1)=u^2 explotan exactamente x_N y x_{N-1} (este último como -ln(T_h - t)).
+    j = int(np.searchsorted(-R, -R[-1] * 1e10))
+    growing = sol.U[-1] - sol.U[j] > 1e-6 * (1 + np.abs(sol.U[-1]))
+    assert growing.sum() == 2 and growing[-1] and growing[-2]
+    # Remaining time consistent with the physical time.
+    np.testing.assert_allclose(sol.t[:10] + R[:10], sol.T, rtol=1e-8)

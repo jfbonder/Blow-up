@@ -62,8 +62,11 @@ Módulos del paquete:
 - `blowup/parabolic.py` (en construcción): semidiscretización P1 + *mass
   lumping* de $u_t=u_{xx}+r(u)$ con $u_x(0)=0$ y $u_x(1)=F(u(1))$, con
   jacobiano exacto para integradores implícitos. Incluye clasificación
-  decaimiento/explosión y bisección para umbrales (variedad estable). Falta
-  el paso temporal adaptativo para blow-up.
+  decaimiento/explosión, bisección para umbrales (variedad estable) y
+  `solve_to_blowup`, que integra hasta $T_h-t\sim10^{-100}$ o menos con el
+  reescalamiento $dt/ds=\min(1,u/f(u))$, la versión continua del paso
+  adaptativo. También incluye el problema con Dirichlet y reacción
+  ($u_t=u_{xx}+f(u)$).
 
 ## Instalación y uso
 
@@ -245,3 +248,46 @@ Resultados para $p=2$:
 - **Tiempo cerca de $v$:** con $\lambda=\lambda_{c,h}(1\pm10^{-k})$ la
   solución pasa un tiempo $\approx k\ln10/\mu$ cerca de $v$ antes de decaer
   a 0 o explotar. Cada factor 100 agrega ≈0.46 unidades de tiempo.
+
+### Conjuntos de blow-up numéricos (Fernández Bonder–Groisman–Rossi)
+
+El paper es teórico, así que estos son experimentos ilustrativos. Problema:
+$u_t=u_{xx}$, $u_x(0)=0$, $u_x(1)=f(u(1))$, con P1 y *mass lumping*.
+
+**Método.** Para distinguir los nodos que explotan de los acotados hay que
+llegar muy cerca de $T_h$. `solve_to_blowup` integra en el tiempo
+reescalado $s$, con $dt/ds=\min(1,u_N/f(u_N))$. Para $f=s^p$ es la regla
+$\tau\min(1,u^{1-p})$ de los artículos. El tiempo restante $T_h-t$ se
+calcula como $\int_s^\infty dt/ds$, sin cancelación, y así se llega a
+$T_h-t\approx10^{-60}$–$10^{-270}$. Un nodo cuenta como "explota" si sigue
+creciendo en las últimas 10 décadas de $T_h-t$.
+
+| Script | Qué hace | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.blowup_sets [--only count\|rates\|profiles\|log\|exp]` | Todos los experimentos de abajo | ~15 s |
+
+**Cantidad de nodos que explotan, $f=s^p$:**
+
+| $p$ | $1/(p-1)$ | $N=10$ | $N=20$ | $N=40$ | $N=80$ |
+|---|---|---|---|---|---|
+| 3 | 0.5 | 1 | 1 | 1 | 1 |
+| 2 | 1 | 2 | 2 | 2 | 2 |
+| 1.5 | 2 | 3 | 3 | 3 | 3 |
+| 1.3 | 3.33 | 4 | 4 | 4 | 4 |
+| 1.25 | 4 | 5 | 5 | 5 | 5 |
+
+- **Independencia de $h$:** la cantidad de nodos no depende de $N$
+  (Teorema 1). Es $[1/(p-1)]+1$, es decir, $B(u_h)=[1-Kh,1]$ con
+  $K=[1/(p-1)]$.
+- **Diferencia con el texto del paper:** el paper dice "exactamente $K$
+  nodos", pero $[1-Kh,1]$ contiene $K+1$ nodos, y los experimentos dan
+  $K+1$.
+- **Tasas** ($p=1.5$, $N=20$): las pendientes medidas para $u_N$ y $u_{N-1}$
+  son $-2.0000$ y $-1.0000$, como predice $u_{N-k}\sim(T_h-t)^{-1/(p-1)+k}$.
+  Además $u_{N-2}\approx400\,(-\ln(T_h-t))$; el factor 400 es $1/h^2$.
+  $u_{N-3}$ queda acotado. Los cocientes $u_i/u_{i+1}\to0$, como dice el
+  Teorema 3.
+- **$f=s(\ln s)^2$:** la explosión numérica es global; todos los nodos
+  superan $10^{197}$. El problema continuo, en cambio, explota sólo en
+  $x=1$.
+- **$f=e^s$:** explota sólo $x_N$, y $u_N+\ln(T_h-t)\to-\ln(2/h)$.

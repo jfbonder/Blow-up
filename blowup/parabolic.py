@@ -322,3 +322,95 @@ def unstable_eigenvalue_continuous(p: float) -> float:
 
     k = brentq(lambda k: k * math.tanh(k) - (p - 1), 1e-9, 50)
     return k * k
+
+
+# ---------------------------------------------------------------------------
+# Integración hasta la explosión con reescalamiento del tiempo
+# ---------------------------------------------------------------------------
+
+@dataclass
+class BlowupSolution:
+    r"""Solución integrada hasta muy cerca del tiempo de explosión.
+
+    Attributes
+    ----------
+    s:
+        Tiempo reescalado (equiespaciado).
+    t:
+        Tiempo físico :math:`t(s)`.
+    U:
+        Solución, ``U[j]`` es el vector en ``s[j]``.
+    remaining:
+        :math:`T_h - t(s)`, calculado como :math:`\int_s^\infty g` (sin
+        cancelación, aunque :math:`T_h-t` sea :math:`10^{-100}`).
+    T:
+        Tiempo de explosión estimado :math:`T_h`.
+    """
+
+    s: np.ndarray
+    t: np.ndarray
+    U: np.ndarray
+    remaining: np.ndarray
+    T: float
+
+
+def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u_stop: float = 1e100,
+                    n_out: int = 4000, s_max: float = 1e6, rtol: float = 1e-10, atol: float = 1e-12,
+                    method: str = "LSODA") -> BlowupSolution:
+    r"""Integra :math:`U'=\Phi(U)` hasta que :math:`\max U\ge` ``u_stop``.
+
+    Usa el reescalamiento del tiempo
+
+    .. math::  \frac{dt}{ds} = g(U) = \frac{1}{\max(1, \text{growth}(\max U))},
+               \qquad \frac{dU}{ds} = g(U)\,\Phi(U),
+
+    que es la versión continua de la regla de paso adaptativo
+    :math:`\tau_n=\tau\min(1, \max U_n/f(\max U_n))` (para :math:`f=s^p`,
+    :math:`\tau_n=\tau\min(1,\|U_n\|_\infty^{1-p})`).  ``growth(m)`` es
+    :math:`f(m)/m`.  En la variable :math:`s` la solución crece
+    exponencialmente y :math:`t(s)\to T_h` cuando :math:`s\to\infty`.
+
+    El tiempo restante :math:`T_h-t(s)=\int_s^\infty g` se calcula integrando
+    :math:`g` hacia atrás desde el final (más una cola geométrica), de modo
+    que tiene precisión relativa completa.
+    """
+
+    def g_of(U):
+        m = float(np.max(U))
+        return 1.0 / max(1.0, growth(m))
+
+    def F(s, y):
+        U = y[:-1]
+        g = g_of(U)
+        return np.append(g * problem.rhs(0.0, U), g)
+
+    def stop(s, y):
+        return np.max(y[:-1]) - u_stop
+
+    stop.terminal = True
+    y0 = np.append(np.asarray(u0, float), 0.0)
+    sol = solve_ivp(F, (0.0, s_max), y0, method=method, rtol=rtol, atol=atol, events=stop,
+                    dense_output=True)
+    if sol.status != 1:
+        raise RuntimeError(f"no se alcanzó u_stop={u_stop:g}: {sol.message}")
+    s_end = float(sol.t[-1])
+    s = np.linspace(0.0, s_end, n_out)
+    Y = sol.sol(s)
+    U = Y[:-1].T
+    t = Y[-1]
+    g = np.array([g_of(u) for u in U])
+    # g es casi exponencial en s: se integra cada tramo exactamente para una
+    # exponencial, ds (g1 - g2) / ln(g1 / g2), y la cola como g_end / tasa.
+    ds = s[1] - s[0]
+    lr = np.log(g[:-1]) - np.log(g[1:])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        seg = np.where(np.abs(lr) > 1e-12, ds * (g[:-1] - g[1:]) / lr, 0.5 * ds * (g[:-1] + g[1:]))
+    rate = lr[-1] / ds
+    tail = g[-1] / rate if rate > 0 else 0.0
+    rem_int = np.append(np.cumsum(seg[::-1])[::-1], 0.0) + tail
+    T = float(t[-1] + tail)
+    # Lejos de T_h la diferencia directa es exacta; cerca, la integral evita
+    # la cancelación.
+    rem_direct = T - t
+    remaining = np.where(rem_direct > 1e-6 * T, rem_direct, rem_int)
+    return BlowupSolution(s, t, U, remaining, T)
