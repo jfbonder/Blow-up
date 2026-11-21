@@ -56,8 +56,9 @@ Módulos del paquete:
 
 - `blowup/sode.py` ✅: Euler–Maruyama con paso adaptativo $\tau_k = h/b(X_k)$,
   trayectorias individuales y Monte Carlo vectorizado de $R_h^M$.
-- `blowup/spde.py` (pendiente): diferencias finitas en espacio con ruido
-  blanco espacio-temporal y paso adaptativo.
+- `blowup/spde.py` ✅: diferencias finitas en espacio con ruido blanco
+  espacio-temporal, Euler explícito con paso adaptativo, trayectorias
+  registradas y Monte Carlo vectorizado de tiempos de explosión.
 - `blowup/parabolic.py` (pendiente): semidiscretizaciones (P1 + *mass
   lumping*), pasos temporales adaptativos, detección de blow-up y
   estimación de $T_h$.
@@ -107,3 +108,66 @@ Resultado de referencia de la Fig. 3 (semilla por defecto):
 Para estos $M$, $R_h^M$ todavía está lejos del tiempo de explosión $T$: la
 cola determinista $\int_M^\infty ds/b \approx 10\,M^{-0.1}$ vale $\approx4$
 para $M=10^4$. La convergencia en $M$ es muy lenta porque $b\sim s^{1.1}$.
+
+### SPDE con ruido blanco (Fernández Bonder–Groisman)
+
+$u_t=u_{xx}+(u_+)^2+\sigma\dot W$ en $(0,1)$, Dirichlet homogéneo,
+$u_0\equiv0$, $h=0.02$, explosión cuando $\max u\ge10^{13}$. Las figuras
+se guardan en `figures/spde/`. Los tiempos de explosión se guardan en
+`results/spde/` y se reutilizan entre scripts.
+
+| Script | Qué reproduce | Tiempo |
+|---|---|---|
+| `python -m experiments.spde.fig1_3_sample_path` | Figs. 1–3 y Tabla 1: una trayectoria ($\sigma=6.36$) | ~10 s |
+| `python -m experiments.spde.fig4_explosion_time` | Fig. 4: densidad y box-plot del tiempo de explosión, 832 trayectorias | ~25 min |
+| `python -m experiments.spde.exp0_metastable` | Experimento sin figura: $\sigma=3,4,5$ hasta $t=1000$, sin explosión | ~10 min |
+| `python -m experiments.spde.exponential_law` | **Adicional:** $T/\bar T$ vs. Exp(1) para $\sigma=6.36,\,7,\,8,\,10$ | ~1 h sin caché |
+
+**Elecciones propias**, porque el paper no las especifica:
+
+- **Escala del ruido.** Uso $\frac{\sigma}{\sqrt h}\,dw_k$ con $w_k$
+  brownianos estándar, es decir, $\sigma\sqrt{\tau_j/h}\,\xi_k$ por paso.
+  Es la lectura coherente con la prueba del Teorema 4.1 y reproduce la
+  amplitud de las fluctuaciones de la Fig. 1 original.
+- **Paso adaptativo.** Uso
+  $\tau_j=\min\big(\tau_{\max},\,\tau/\|u^j\|_{L^1}\big)$ con
+  $\tau=5\cdot10^{-4}$ y $\tau_{\max}=0.4h^2$, dentro de la condición de
+  estabilidad de Euler explícito. El paper escribe $\tau/\sum_k hu_k$: sin
+  valor absoluto ni cota, el paso no está definido en $t=0$.
+
+**Resultados.**
+
+- **Figs. 1–3 y Tabla 1.** La trayectoria de la semilla por defecto explota
+  en $t\approx69.94$; la del paper, en $72.51$. Los máximos coinciden con
+  los de la Tabla 1 (5.0 en $t=1$ y 3.7 en $t=50$, contra 5.6 y 3.4).
+- **Fig. 4: el tiempo medio da el doble que en el paper.** Obtengo media
+  94.0 y desvío 94.9; el paper reporta 46.9 y 43.9. La media no depende
+  del paso temporal: con 100 trayectorias da ≈104 para
+  $\tau_{\max}=0.1h^2,\ 0.25h^2$ y $0.49h^2$. Como el tiempo depende
+  exponencialmente de $1/\sigma^2$, la diferencia equivale a usar
+  $\sigma\approx6.8$ en lugar de $6.36$ (con $\sigma=7$ obtengo media
+  36.5). Probablemente viene de alguna convención no especificada del
+  código original: la celda del ruido, la indexación de la malla o el
+  tratamiento de $\sum_k hu_k\le0$. Lo cualitativo coincide: media ≈
+  desvío, densidad de forma exponencial.
+- **Metaestabilidad para $\sigma\le5$.** Ninguna explosión hasta $t=1000$,
+  igual que en el paper.
+
+**Ley exponencial** (experimento adicional, motivado por Groisman–Saglietti,
+*J. Math. Anal. Appl.* 385, 2012, y Groisman–Saglietti–Saintier,
+*Stoch. Proc. Appl.* 128, 2018). Comparo $T/\bar T$ con Exp(1), 832
+trayectorias por valor de $\sigma$. El p-valor es de Kolmogorov–Smirnov,
+calculado por Monte Carlo porque la media es estimada.
+
+| $\sigma$ | media | desvío | CV | KS | p-valor |
+|---|---|---|---|---|---|
+| 6.36 | 94.01 | 94.92 | 1.01 | 0.031 | 0.18 |
+| 7 | 36.52 | 35.92 | 0.98 | 0.021 | 0.68 |
+| 8 | 13.57 | 13.61 | 1.00 | 0.044 | 0.006 |
+| 10 | 4.43 | 3.96 | 0.89 | 0.074 | <0.001 |
+
+Para $\sigma\le7$ no se rechaza la exponencialidad. Para $\sigma$ grande la
+explosión deja de ser un evento raro y la ley se aparta de la exponencial:
+la cola es más liviana y aparece un tiempo mínimo de tránsito. Es lo
+esperable si $T_\sigma/\mathbb E T_\sigma\to\mathrm{Exp}(1)$ cuando
+$\sigma\to0$.
