@@ -1,5 +1,7 @@
 # Notas: Fernández Bonder, Groisman, Rossi — *On numerical blow-up sets*
 
+> **Referencia publicada:** J. Fernández Bonder, P. Groisman and J.D. Rossi. On numerical blow-up sets. *Proc. Amer. Math. Soc.*, 130 (2002), no. 7, 2049–2055.
+
 > Objetivo de estas notas: poder reimplementar (Python/NumPy/SciPy) todo cálculo numérico del artículo sin volver a abrir el PDF.
 > Fuente: `papers/FGR_numerical-blowup-sets.pdf` (7 páginas, generado con TeX el 2001-10-31).
 

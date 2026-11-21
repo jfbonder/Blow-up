@@ -1,5 +1,7 @@
 # Notas: Fernández Bonder & Groisman — *Time–space white noise eliminates global solutions in reaction diffusion equations*
 
+> **Referencia publicada:** J. Fernández Bonder and P. Groisman. Time–space white noise eliminates global solutions in reaction diffusion equations. *Physica D*, 238 (2009), 209–215.
+
 Objetivo de estas notas: poder reimplementar (Python/NumPy/SciPy) todos los cálculos numéricos del paper sin volver a abrir el PDF. Lo que dice el paper se marca como tal; lo que es interpretación o sugerencia propia se marca **[interpretación]** o **[sugerencia]**.
 
 ---

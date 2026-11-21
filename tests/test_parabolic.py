@@ -121,3 +121,16 @@ def test_square_fd_structure_and_propagation():
     corner = np.isclose(X, 1) & np.isclose(Y, 1)
     assert grow.sum() == 3 and grow[corner].all()
     assert np.array_equal(grow, S.graph_distance(corner) <= 1)
+
+
+def test_coupled_system_nonsimultaneous():
+    from blowup.parabolic import CoupledFlux1D, solve_to_blowup
+
+    for p21, v_bounded in [(1.0, True), (3.0, False)]:
+        S = CoupledFlux1D(10, 3.0, 1.0, p21, 0.0)
+        Y0 = np.concatenate([np.full(11, 2.0), np.ones(11)])
+        sol = solve_to_blowup(S, Y0, None, u_stop=1e60)
+        R = sol.remaining
+        V = sol.U[:, 11:].max(axis=1)
+        j = int(np.searchsorted(-R, -R[-1] * 1e10))
+        assert (V[-1] - V[j] < 1e-8 * V[-1]) == v_bounded

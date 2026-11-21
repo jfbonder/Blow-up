@@ -1,5 +1,7 @@
 # Acosta, Fernández Bonder, Rossi — *Stable manifold approximation for the heat equation with nonlinear boundary condition*
 
+> **Referencia publicada:** G. Acosta, J. Fernández Bonder and J.D. Rossi. Stable manifold approximation for the heat equation with nonlinear boundary conditions. *J. Dynam. Differential Equations*, 12 (2000), no. 3, 557–578.
+
 Notas para reimplementar (Python/NumPy/SciPy) todos los cálculos numéricos del artículo sin volver al PDF.
 Archivo fuente: `papers/AFR_stable-manifold.pdf` (20 páginas, preprint compilado con TeX el 2001-10-31).
 

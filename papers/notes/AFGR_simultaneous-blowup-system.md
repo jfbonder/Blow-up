@@ -1,5 +1,7 @@
 # Notas: Acosta, Fernández Bonder, Groisman, Rossi — *Simultaneous vs. non-simultaneous blow-up in numerical approximations of a parabolic system with nonlinear boundary conditions*
 
+> **Referencia publicada:** G. Acosta, J. Fernández Bonder, P. Groisman and J.D. Rossi. Simultaneous vs. non-simultaneous blow-up in numerical approximations of a parabolic system with nonlinear boundary conditions. *M2AN Math. Model. Numer. Anal.*, 36 (2002), no. 1, 55–68.
+
 > **Aviso principal.** Este artículo es **puramente teórico**: no contiene ningún experimento numérico, **ninguna figura y ninguna tabla** (revisadas las 14 páginas del PDF, incluidas las imágenes de cada página). No se menciona MATLAB, ni pasos de tiempo, ni tolerancias, ni datos iniciales concretos. Todo lo que aparece abajo en la sección 5 bajo "experimentos" es, por tanto, vacío; en la sección 6 se proponen (marcados explícitamente como **propuesta propia, no del paper**) cálculos que permitirían ilustrar los teoremas.
 
 ---

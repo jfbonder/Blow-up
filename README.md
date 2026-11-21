@@ -38,8 +38,17 @@ lineal en el borde.
 | J. Dávila, J. Fernández Bonder, P. Groisman, J. D. Rossi, M. Sued, *Numerical analysis of stochastic differential equations with explosions* | [PDF](papers/DFGRS_sde-explosions.pdf) ([PS original](papers/DFGRS_sde-explosions.ps)) | [nota](papers/notes/DFGRS_sde-explosions.md) | Figs. 1–3 |
 | J. Fernández Bonder, P. Groisman, *Time–space white noise eliminates global solutions in reaction diffusion equations* | [PDF](papers/FG_white-noise-blowup.pdf) | [nota](papers/notes/FG_white-noise-blowup.md) | Figs. 1–4, Tabla 1 |
 
-> Los PDFs son preprints y no incluyen los datos de publicación (revista,
-> año, volumen). Completar las referencias definitivas.
+### Referencias
+
+- G. Acosta, J. Fernández Bonder and J.D. Rossi. Stable manifold approximation for the heat equation with nonlinear boundary conditions. *J. Dynam. Differential Equations*, 12 (2000), no. 3, 557–578. — [nota](papers/notes/AFR_stable-manifold.md)
+- J. Fernández Bonder and J.D. Rossi. Blow-up vs. spurious steady solutions. *Proc. Amer. Math. Soc.*, 129 (2001), no. 1, 139–144. — [nota](papers/notes/FR_blowup-vs-spurious-steady.md)
+- J. Fernández Bonder, P. Groisman and J.D. Rossi. On numerical blow-up sets. *Proc. Amer. Math. Soc.*, 130 (2002), no. 7, 2049–2055. — [nota](papers/notes/FGR_numerical-blowup-sets.md)
+- G. Acosta, J. Fernández Bonder, P. Groisman and J.D. Rossi. Numerical approximation of a parabolic problem with a nonlinear boundary condition in several space dimensions. *Discrete Contin. Dynam. Systems - Series B*, 2 (2002), no. 2, 279–294. — [nota](papers/notes/AFGR_nonlinear-bc-several-dims.md)
+- G. Acosta, J. Fernández Bonder, P. Groisman and J.D. Rossi. Simultaneous vs. non-simultaneous blow-up in numerical approximations of a parabolic system with nonlinear boundary conditions. *M2AN Math. Model. Numer. Anal.*, 36 (2002), no. 1, 55–68. — [nota](papers/notes/AFGR_simultaneous-blowup-system.md)
+- J. Dávila, J. Fernández Bonder, P. Groisman, J.D. Rossi and M. Sued. Numerical analysis of stochastic differential equations with explosions. *Stochastic Anal. Appl.*, 23 (2005), no. 4, 809–825. — [nota](papers/notes/DFGRS_sde-explosions.md)
+- J. Fernández Bonder and P. Groisman. Time–space white noise eliminates global solutions in reaction diffusion equations. *Physica D*, 238 (2009), 209–215. — [nota](papers/notes/FG_white-noise-blowup.md)
+
+Los PDFs del repositorio son las versiones de autor.
 
 ## Estructura del repositorio
 
@@ -367,3 +376,36 @@ malla, más se acerca la pendiente a $-1/2$ (llega a $-0.54$ con $N=80$).
 0.02399, 0.02282, 0.02249 y 0.02241 para $N=10,\dots,160$. El orden
 observado tiende a 2 (1.75, 1.86, 1.91), y por extrapolación de Richardson
 $T\approx0.02238$.
+
+### Sistema: blow-up simultáneo y no simultáneo (Acosta–Fernández Bonder–Groisman–Rossi)
+
+El paper es teórico, así que estos son experimentos ilustrativos. Problema:
+$u_t=u_{xx}$, $v_t=v_{xx}$ en $(0,1)$, con
+$\partial_\eta u=u^{p_{11}}v^{p_{12}}$ y $\partial_\eta v=u^{p_{21}}v^{p_{22}}$
+en $x=0,1$, discretizado con P1 y *mass lumping* (`CoupledFlux1D`). Integro
+hasta la explosión con el tiempo reescalado genérico
+$dt/ds=\min(1,\|Y\|_\infty/\|Y'\|_\infty)$.
+
+| Script | Qué hace | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.system [--only existence\|nonsimultaneous]` | Teorema 1.2 y Teoremas 1.4–1.5 | ~6 min |
+
+**Existencia de blow-up** (Teorema 1.2). Barrí la familia
+$p_{11}=p_{22}=a$, $p_{12}=p_{21}=b$ en una grilla de $15\times15$ puntos,
+con $N=10$ y dato asimétrico $(U_0,V_0)=(2,0.5)$. Los 225 puntos
+coinciden con la predicción: hay explosión sii $a>1$ o $(a-1)^2<b^2$.
+Para decidir si una solución explota comparo cuánto tarda
+$\|Y\|_\infty$ en pasar de $10^{30}$ a $10^{60}$ y de $10^{60}$ a
+$10^{90}$. El cociente es menor que 1 si hay explosión, 1 si el crecimiento
+es exponencial y enorme si es polinomial.
+
+**Blow-up simultáneo y no simultáneo** (Teoremas 1.4–1.5). Con
+$p_{11}=3$, $p_{12}=1$, $p_{22}=0$ y dato $(2,1)$, $V$ queda acotada sii
+$p_{21}<p_{11}-1=2$. Pasa lo mismo para $N=10,20,40,80$:
+
+| $p_{21}$ | 0 | 1 | 1.5 | 2.5 | 3 | 4 |
+|---|---|---|---|---|---|---|
+| $V$ | acotada | acotada | acotada | explota | explota | explota |
+
+En el caso no simultáneo,
+$\|U\|_\infty\sim(T_h-t)^{-1/(p_{11}-1)}$ y $V$ converge a un valor finito.

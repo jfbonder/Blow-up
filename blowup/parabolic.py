@@ -354,7 +354,7 @@ class BlowupSolution:
     T: float
 
 
-def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u_stop: float = 1e100,
+def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float] | None, u_stop: float = 1e100,
                     n_out: int = 4000, s_max: float = 1e6, rtol: float = 1e-10, atol: float = 1e-12,
                     method: str = "LSODA") -> BlowupSolution:
     r"""Integra :math:`U'=\Phi(U)` hasta que :math:`\max U\ge` ``u_stop``.
@@ -367,7 +367,9 @@ def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u
     que es la versión continua de la regla de paso adaptativo
     :math:`\tau_n=\tau\min(1, \max U_n/f(\max U_n))` (para :math:`f=s^p`,
     :math:`\tau_n=\tau\min(1,\|U_n\|_\infty^{1-p})`).  ``growth(m)`` es
-    :math:`f(m)/m`.  En la variable :math:`s` la solución crece
+    :math:`f(m)/m`.  Con ``growth=None`` se usa la regla genérica
+    :math:`g=\min(1,\|U\|_\infty/\|\Phi(U)\|_\infty)` (cambio relativo
+    acotado por unidad de :math:`s`), útil para sistemas.  En la variable :math:`s` la solución crece
     exponencialmente y :math:`t(s)\to T_h` cuando :math:`s\to\infty`.
 
     El tiempo restante :math:`T_h-t(s)=\int_s^\infty g` se calcula integrando
@@ -377,6 +379,8 @@ def solve_to_blowup(problem, u0: np.ndarray, growth: Callable[[float], float], u
 
     def g_of(U):
         m = float(np.max(U))
+        if growth is None:
+            return 1.0 / max(1.0, float(np.max(np.abs(problem.rhs(0.0, U)))) / m)
         return 1.0 / max(1.0, growth(m))
 
     def F(s, y):
@@ -513,3 +517,58 @@ def square_fd(n: int, p: float) -> LumpedSystem:
     bmass = np.where(on_x | on_y, h, 0.0).ravel()
     X, Y = np.meshgrid(np.linspace(0, 1, n + 1), np.linspace(0, 1, n + 1), indexing="ij")
     return LumpedSystem(w.ravel() * h * h, A.tocsr(), bmass, p, np.column_stack([X.ravel(), Y.ravel()]))
+
+
+@dataclass
+class CoupledFlux1D:
+    r"""Sistema de Acosta–Fernández Bonder–Groisman–Rossi (*simultaneous vs.
+    non-simultaneous blow-up*) en :math:`\Omega=(0,1)`:
+
+    .. math::  u_t=u_{xx},\quad v_t=v_{xx},\qquad
+               \partial_\eta u = u^{p_{11}}v^{p_{12}},\quad
+               \partial_\eta v = u^{p_{21}}v^{p_{22}}\quad\text{en } x=0,1.
+
+    P1 + mass lumping: :math:`MU'=-AU+B(U^{p_{11}}V^{p_{12}})`,
+    :math:`MV'=-AV+B(U^{p_{21}}V^{p_{22}})` con :math:`b_0=b_N=1`.  El estado es
+    ``Y = [U, V]`` (largo ``2(N+1)``).
+    """
+
+    N: int
+    p11: float
+    p12: float
+    p21: float
+    p22: float
+
+    def __post_init__(self):
+        self.h = 1.0 / self.N
+        self.x = np.linspace(0.0, 1.0, self.N + 1)
+        self.mass = np.full(self.N + 1, self.h)
+        self.mass[[0, -1]] = self.h / 2
+
+    def _lap(self, u):
+        h2 = self.h**2
+        d = np.empty_like(u)
+        d[0] = 2 * (u[1] - u[0]) / h2
+        d[1:-1] = (u[2:] - 2 * u[1:-1] + u[:-2]) / h2
+        d[-1] = 2 * (u[-2] - u[-1]) / h2
+        return d
+
+    def split(self, Y):
+        return Y[: self.N + 1], Y[self.N + 1:]
+
+    def rhs(self, t: float, Y: np.ndarray) -> np.ndarray:
+        U, V = self.split(Y)
+        du, dv = self._lap(U), self._lap(V)
+        for k in (0, -1):
+            u, v = abs(U[k]), abs(V[k])
+            du[k] += u**self.p11 * v**self.p12 / self.mass[k]
+            dv[k] += u**self.p21 * v**self.p22 / self.mass[k]
+        return np.concatenate([du, dv])
+
+    def solve(self, Y0, t_end, method="LSODA", rtol=1e-10, atol=1e-12, events=None, **kw):
+        return solve_ivp(self.rhs, (0.0, t_end), Y0, method=method, rtol=rtol, atol=atol,
+                         events=events, **kw)
+
+    def blows_up_ode(self) -> bool:
+        """Teorema 1.2: explota sii p11>1, p22>1 o (p11-1)(p22-1) < p12 p21."""
+        return self.p11 > 1 or self.p22 > 1 or (self.p11 - 1) * (self.p22 - 1) < self.p12 * self.p21

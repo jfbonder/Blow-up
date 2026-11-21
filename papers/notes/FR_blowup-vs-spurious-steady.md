@@ -1,5 +1,7 @@
 # Fernández Bonder & Rossi — *Blow-up vs. spurious steady solutions*
 
+> **Referencia publicada:** J. Fernández Bonder and J.D. Rossi. Blow-up vs. spurious steady solutions. *Proc. Amer. Math. Soc.*, 129 (2001), no. 1, 139–144.
+
 Notas para reimplementar (Python/NumPy/SciPy) todo lo computable del artículo sin volver a abrir el PDF
 (`papers/FR_blowup-vs-spurious-steady.pdf`, 6 páginas).
 

@@ -1,5 +1,7 @@
 # Notas: Dávila, Fernández Bonder, Groisman, Rossi, Sued — *Numerical analysis of stochastic differential equations with explosions*
 
+> **Referencia publicada:** J. Dávila, J. Fernández Bonder, P. Groisman, J.D. Rossi and M. Sued. Numerical analysis of stochastic differential equations with explosions. *Stochastic Anal. Appl.*, 23 (2005), no. 4, 809–825.
+
 Fuente: `papers/DFGRS_sde-explosions.pdf` (15 páginas, convertido de `DFGRS_sde-explosions.ps`, archivo DVI `estoca3-12.dvi`).
 Objetivo de estas notas: poder reimplementar en Python (NumPy/SciPy) todos los cálculos numéricos del paper sin volver al PDF.
 

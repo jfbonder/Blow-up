@@ -1,5 +1,7 @@
 # Notas: Acosta – Fernández Bonder – Groisman – Rossi, *Numerical approximation of a parabolic problem with a nonlinear boundary condition in several space dimensions*
 
+> **Referencia publicada:** G. Acosta, J. Fernández Bonder, P. Groisman and J.D. Rossi. Numerical approximation of a parabolic problem with a nonlinear boundary condition in several space dimensions. *Discrete Contin. Dynam. Systems - Series B*, 2 (2002), no. 2, 279–294.
+
 > **Aviso principal.** Este artículo es **puramente teórico**: no contiene ningún experimento numérico, ninguna figura, ninguna tabla ni ningún resultado computado (se revisaron las 17 páginas del PDF; tampoco aparecen las palabras "figure"/"table" en el texto). No hay, por tanto, código MATLAB "perdido" que reproducir *de este artículo en sí*. Lo que sí contiene es un esquema semidiscreto general y teoremas cuantitativos (tasas, conjuntos de explosión, convergencia de tiempos) que se pueden **verificar numéricamente**. La sección 5 lo deja explícito y la sección 6 propone qué verificar, separando claramente lo que dice el artículo de lo que se sugiere aquí.
 
 ---
