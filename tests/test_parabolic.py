@@ -80,3 +80,18 @@ def test_solve_to_blowup_power_rate_and_nodes():
     assert growing.sum() == 2 and growing[-1] and growing[-2]
     # Remaining time consistent with the physical time.
     np.testing.assert_allclose(sol.t[:10] + R[:10], sol.T, rtol=1e-8)
+
+
+def test_spurious_steady_state():
+    from experiments.parabolic.spurious import problem, steady_states
+
+    N, p = 20, 2.5
+    Ws = steady_states(N, p)
+    assert len(Ws) == 1
+    W = Ws[0]
+    P = problem(N, p)
+    np.testing.assert_allclose(P.rhs(0, W) / W.max(), 0, atol=1e-8)
+    assert np.all(np.diff(W) > 0)  # creciente
+    h = 1 / N
+    assert 0.95 * (2 / h) ** 2 < W[-1] < (2 / h) ** 2  # w_N ≈ (2/(λh))^{1/(p-q)}
+    assert np.linalg.eigvals(P.jac_dense(W)).real.max() < 0  # atractiva

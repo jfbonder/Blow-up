@@ -291,3 +291,42 @@ creciendo en las últimas 10 décadas de $T_h-t$.
   superan $10^{197}$. El problema continuo, en cambio, explota sólo en
   $x=1$.
 - **$f=e^s$:** explota sólo $x_N$, y $u_N+\ln(T_h-t)\to-\ln(2/h)$.
+
+### Estacionarias espurias (Fernández Bonder–Rossi)
+
+El paper es teórico, así que estos son experimentos ilustrativos. Problema:
+$u_t=u_{xx}-\lambda u^p$, $u_x(0)=0$, $u_x(1)=u^q$, con $q=2$ y
+$\lambda=1$, discretizado con P1 y *mass lumping*. La absorción entra en
+todos los nodos.
+
+| Script | Qué hace | Tiempo |
+|---|---|---|
+| `python -m experiments.parabolic.spurious [--only steady\|dynamics\|regimes]` | Estacionaria espuria, dinámica y los otros dos regímenes | ~20 s |
+
+**Estacionaria espuria** ($p=2.5$, régimen $q<p<2q-1$). La calculo por
+*shooting* desde $x=0$ (ec. (3.2)) y la refino con Newton. Uso
+$F_2=w_1+\frac{\lambda h^2}{2}w_1^p$: el paper imprime $\lambda h^2$, que
+es una errata.
+
+| $N$ | estacionarias positivas | $w_N$ | $c_h=w_Nh^{1/(p-q)}$ | autovalor máx. |
+|---|---|---|---|---|
+| 10 | 1 | 382.59 | 3.826 | −22.98 |
+| 20 | 1 | 1564.27 | 3.911 | −22.31 |
+| 40 | 1 | 6326.86 | 3.954 | −21.70 |
+| 80 | 1 | 25450.84 | 3.977 | −21.31 |
+| 160 | 1 | 102096.93 | 3.988 | −21.07 |
+
+- **Tamaño:** $c_h\to(2/\lambda)^{1/(p-q)}=4$ por debajo, como dice el
+  Teorema 1.4.
+- **Estabilidad:** todos los autovalores del jacobiano son negativos, así
+  que la espuria es atractiva.
+- **Unicidad:** es la única estacionaria positiva del esquema. El problema
+  continuo no tiene ninguna.
+- **Dinámica:** con dato $u_0\equiv3$ el problema continuo explota. Para
+  cada $N$, la solución discreta sigue a la continua hasta $t\approx0.025$ y
+  después satura en la espuria, que está cada vez más alta: el blow-up
+  queda reemplazado por una estacionaria de tamaño $\sim h^{-2}$.
+- **$p=1.5\le q$:** el esquema explota, y $T_h$ converge (0.0308, 0.0241,
+  0.0217, 0.0209 y 0.0206 para $N=10,\dots,160$).
+- **$p=4>2q-1$:** las soluciones son globales y convergen a una
+  estacionaria acotada que no depende de $h$ ($u_N\to2.536$).
